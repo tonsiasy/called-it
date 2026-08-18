@@ -1,0 +1,22 @@
+/**
+ * Single source of truth for colour. tailwind.config.js references these by name;
+ * canvas drawing reads them via getComputedStyle. Values are documented in
+ * ../../../design/DESIGN.md §2 along with the reasoning for each.
+ */
+:root {
+  --board-deep: oklch(0.155 0.014 168);
+  --board: oklch(0.205 0.017 168);
+  --board-raised: oklch(0.245 0.018 168);
+
+  --chalk: oklch(0.945 0.01 85);
+  --chalk-dim: oklch(0.76 0.012 85);
+  --chalk-faint: oklch(0.46 0.015 168);
+
+  /* Ticks are 1px verticals; chalk-faint reads as a divider but vanishes as a
+     tick on a dark board, so they get their own luminance. DESIGN.md §2. */
+  --tick: oklch(0.575 0.014 168);
+
+  /* Amber marks the moment a truth lands. Nothing else, ever. DESIGN.md §2. */
+  --amber: oklch(0.83 0.145 78);
+  --amber-dim: oklch(0.62 0.11 78);
+}

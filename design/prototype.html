@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Called It — visual prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --board-deep: oklch(0.155 0.014 168);
+  --board:      oklch(0.205 0.017 168);
+  --board-raised: oklch(0.245 0.018 168);
+  --chalk:      oklch(0.945 0.010 85);
+  --chalk-dim:  oklch(0.760 0.012 85);
+  --chalk-faint:oklch(0.460 0.015 168);
+  /* ruled lines read fine as dividers at 0.46, but 1px vertical ticks on a dark
+     board need more luminance to survive a phone screen — separate token */
+  --tick:       oklch(0.575 0.014 168);
+  --amber:      oklch(0.830 0.145 78);
+  --amber-dim:  oklch(0.620 0.110 78);
+  --ease: cubic-bezier(0.16,1,0.3,1);
+  --display: "Big Shoulders Display", "Haettenschweiler", "Arial Narrow", sans-serif;
+  --ui: "Archivo", ui-sans-serif, system-ui, sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{min-height:100%}
+body{
+  background:var(--board-deep);
+  font-family:var(--ui);
+  color:var(--chalk);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  touch-action:manipulation;
+  display:flex; justify-content:center;
+  font-variant-numeric:tabular-nums;
+}
+.board{
+  width:100%; max-width:430px; min-height:100%;
+  background:var(--board);
+  padding: max(16px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  display:flex; flex-direction:column;
+  position:relative;
+  /* uneven matte board, not a flat fill */
+  background-image:
+    radial-gradient(120% 80% at 50% 0%, oklch(0.235 0.018 168) 0%, transparent 60%),
+    radial-gradient(100% 60% at 0% 100%, oklch(0.185 0.016 168) 0%, transparent 55%);
+}
+.label{
+  font-size:12px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.18em; color:var(--chalk-dim);
+}
+/* ---- top bar ---- */
+.top{display:flex; align-items:baseline; justify-content:space-between; gap:12px}
+.wordmark{font-family:var(--display); font-weight:700; font-size:22px; letter-spacing:-.012em; text-transform:uppercase}
+/* deliberately NOT amber: the reveal must own the only colour event on the board */
+.count{font-size:12px; font-weight:600; letter-spacing:.18em; color:var(--chalk-dim)}
+.count .dot{display:inline-block;width:5px;height:5px;border-radius:999px;background:var(--chalk-dim);margin-right:6px;vertical-align:middle}
+.rule{height:1px;background:var(--chalk-faint);margin:14px 0 0;box-shadow:inset 0 1px 0 oklch(0 0 0 / .35)}
+
+/* ---- question ---- */
+.q{margin-top:28px}
+.q h1{font-size:22px;font-weight:500;line-height:1.2;letter-spacing:-.012em;text-wrap:balance;max-width:22ch}
+
+/* ---- numeral ---- */
+/* In a flex column, any child left at the default flex-shrink:1 gets crushed once
+   content exceeds the viewport. That silently collapsed the scrubber to height 0.
+   Only .stage may flex; everything else holds its size and the page scrolls. */
+.board > *{flex-shrink:0}
+.stage{flex:1 1 auto; min-height:190px; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:28px 0 8px; gap:2px}
+.callwrap{display:flex;align-items:flex-end;gap:14px}
+.numeral{
+  font-family:var(--display); font-weight:700;
+  font-size:clamp(72px,24vw,104px); line-height:.88; letter-spacing:-.022em;
+  transition:transform 160ms var(--ease); transform-origin:50% 100%;
+}
+.numeral.scrubbing{transform:scale(1.02)}
+/* A 3-digit range (hhi_bp runs 499–661) exactly fills the 320px board with zero
+   margin at the base size. Step down by content length rather than hoping. */
+.numeral.wide{font-size:clamp(54px,17.5vw,80px)}
+.ndash{color:var(--chalk-faint);padding:0 .06em}
+.unit{font-size:13px;font-weight:500;color:var(--chalk-dim);padding-bottom:12px}
+.truth{
+  font-family:var(--display); font-weight:700; font-size:52px; line-height:.92; letter-spacing:-.022em;
+  color:var(--amber);
+  opacity:0; transform:translateY(12px); filter:blur(4px);
+  transition:opacity 320ms var(--ease), transform 320ms var(--ease), filter 320ms var(--ease);
+}
+.revealed .truth{opacity:1; transform:none; filter:none}
+/* Both states occupy the identical footprint so the reveal cannot reflow the page.
+   Pre-reveal the space is labelled rather than left empty — it tells a first-time
+   player what is about to happen there. */
+.outcome{position:relative;width:100%;min-height:86px;margin-top:8px}
+.pending,.resolved{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  transition:opacity 240ms var(--ease)}
+.pending{opacity:1}
+.resolved{opacity:0;pointer-events:none}
+.revealed .pending{opacity:0}
+.revealed .resolved{opacity:1}
+.dash{width:min(240px,70%);height:1px;margin:10px 0 8px;
+  background:repeating-linear-gradient(to right,var(--chalk-faint) 0 6px,transparent 6px 12px)}
+.gap{
+  height:1px;background:var(--amber-dim);width:min(240px,70%);
+  transform:scaleX(0); transform-origin:left center;
+  transition:transform 240ms var(--ease) 120ms;
+  margin:10px 0 2px;
+}
+.revealed .gap{transform:scaleX(1)}
+.gaplabel{font-size:12px;font-weight:600;letter-spacing:.18em;color:var(--amber-dim);opacity:0;transition:opacity 200ms var(--ease) 320ms}
+.revealed .gaplabel{opacity:1}
+
+/* ---- scrubber ---- */
+.scrub{height:64px;position:relative;touch-action:pan-x;cursor:ew-resize;user-select:none;-webkit-user-select:none;margin-top:4px}
+.scrub canvas{width:100%;height:100%;display:block}
+.scrub.locked{opacity:.4;pointer-events:none}
+.hint{text-align:center;margin-top:-4px}
+
+/* ---- lock ---- */
+.lockrow{min-height:52px;display:flex;align-items:center;justify-content:center;margin-top:8px}
+button.lock{
+  font-family:var(--ui); font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.18em;
+  color:var(--chalk); background:var(--board-raised);
+  border:1px solid var(--chalk); border-radius:999px;
+  padding:14px 30px; min-height:44px; cursor:pointer;
+  transition:transform 140ms var(--ease), background-color 140ms var(--ease);
+}
+button.lock:active{transform:scale(.96)}
+button.lock:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
+@media (hover:hover){button.lock:hover{background:oklch(0.275 0.018 168)}}
+.stamp{text-align:center;line-height:1.35}
+.stamp .v{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:-.012em}
+.stamp .anchor{font-size:12px;color:var(--chalk-dim);font-weight:500}
+
+/* ---- form table ---- */
+.form{margin-top:22px}
+.form .row{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-top:1px solid var(--chalk-faint)}
+.form .row:first-of-type{border-top:none}
+.form .row .d{font-size:13px;color:var(--chalk-dim)}
+.form .row .n{font-size:13px;font-weight:500}
+.form .row.median{border-top:1px solid var(--chalk)}
+.form .row.median .d,.form .row.median .n{color:var(--chalk)}
+
+/* ---- standing ---- */
+.standing{margin-top:18px;background:var(--board-raised);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:baseline}
+.standing .r{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:-.012em}
+.standing .p{font-size:13px;font-weight:500;color:var(--chalk-dim)}
+
+/* ---- nav ---- */
+.nav{display:flex;gap:26px;justify-content:center;margin-top:22px;padding-top:16px;border-top:1px solid var(--chalk-faint)}
+.navbtn{background:none;border:none;font-family:var(--ui);cursor:pointer;padding:10px 4px;min-height:44px;
+  font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:var(--chalk-faint);
+  transition:color 140ms var(--ease)}
+.navbtn.on{color:var(--chalk)}
+.navbtn:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
+
+/* ---- record view ---- */
+.view{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.view[hidden]{display:none}
+.summary{padding-top:26px}
+.sumline{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--chalk-dim)}
+.sumline b{font-weight:500;color:var(--chalk)}
+.note{font-size:13px;line-height:1.5;color:var(--chalk-dim);margin-top:14px;text-wrap:pretty;max-width:40ch}
+
+/* History is chalk. Amber marks the moment a truth lands, never the fact that it did —
+   colouring every resolved row would spend the board's one colour event on an archive. */
+.ledger{margin-top:6px}
+.lrow{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:baseline;
+  padding:12px 0;border-top:1px solid var(--chalk-faint)}
+.lrow:first-child{border-top:none}
+.ldate{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--chalk-dim)}
+.lmetric{font-size:13px;color:var(--chalk-dim);grid-column:1}
+.lnums{grid-column:2;grid-row:1;font-size:15px;font-weight:500;white-space:nowrap}
+.lnums .arrow{color:var(--chalk-faint);padding:0 5px}
+.lerr{grid-column:2;grid-row:2;display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.lbar{height:1px;background:var(--chalk-dim);width:calc(var(--e) * 6px);min-width:2px}
+.lev{font-size:13px;color:var(--chalk-dim);min-width:2ch;text-align:right}
+.lexact{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:var(--chalk)}
+.lrow.hit .lnums,.lrow.hit .lmetric{color:var(--chalk)}
+
+/* demo-only control, not part of the design */
+.demo{position:fixed;bottom:10px;right:10px;z-index:9;opacity:.75;font:11px/1 var(--ui);background:oklch(0.3 0.02 168);color:var(--chalk-dim);border:1px solid var(--chalk-faint);border-radius:3px;padding:7px 9px;cursor:pointer}
+
+/* Phone-only surface. Above phone width the board stops stretching and becomes an
+   object hung on the canvas — otherwise .stage absorbs all the slack and opens a void
+   between the numeral and the scrubber. */
+@media (min-width:480px){
+  body{align-items:center;padding:28px 0}
+  .board{min-height:0;border-radius:8px;outline:1px solid var(--chalk-faint);outline-offset:-1px}
+  .stage{max-height:270px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:1ms !important}
+}
+</style>
+</head>
+<body>
+<button class="demo" id="toggle">toggle reveal</button>
+<main class="board" id="board">
+  <div class="top">
+    <div class="wordmark">Called It</div>
+    <div class="count"><span class="dot"></span><span id="cd">04:12:38</span></div>
+  </div>
+  <div class="rule"></div>
+
+  <section class="view" id="view-board">
+  <div class="q">
+    <div class="label" style="margin-bottom:10px">Election 1287 · question 24 of 56</div>
+    <h1>How many slots will the largest validator hold?</h1>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="callwrap">
+      <div class="numeral" id="num">42<span class="ndash">–</span>50</div>
+      <div class="unit">slots</div>
+    </div>
+    <div class="outcome">
+      <div class="pending">
+        <div class="dash"></div>
+        <div class="label" style="color:var(--chalk-faint)">truth lands 17:00 UTC</div>
+      </div>
+      <div class="resolved">
+        <div class="gap"></div>
+        <div class="gaplabel" id="gaplabel">off by 4</div>
+        <div class="truth" id="truth">43</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scrub" id="scrub"><canvas id="cv"></canvas></div>
+  <div class="hint"><span class="label" id="hint">drag to set · ticks are past results</span></div>
+
+  <div class="lockrow" id="lockrow">
+    <button class="lock" id="lockbtn">Lock my call</button>
+  </div>
+
+  <section class="form">
+    <div class="label" style="margin-bottom:6px">Form · last elections</div>
+    <div class="row"><span class="d">Aug 17 · 05:00</span><span class="n">40</span></div>
+    <div class="row"><span class="d">Aug 16 · 17:00</span><span class="n">42</span></div>
+    <div class="row"><span class="d">Aug 16 · 05:00</span><span class="n">49</span></div>
+    <div class="row"><span class="d">Aug 15 · 17:00</span><span class="n">41</span></div>
+    <div class="row median"><span class="d">Median of 8</span><span class="n">43</span></div>
+  </section>
+
+  <div class="standing">
+    <div><div class="label" style="margin-bottom:5px">Standing</div><div class="r">12th</div></div>
+    <div class="p">1,840 pts · top 25%</div>
+  </div>
+  </section>
+
+  <section class="view" id="view-record" hidden>
+    <div class="summary">
+      <div class="label" style="margin-bottom:8px">Your record</div>
+      <div class="callwrap" style="justify-content:flex-start">
+        <div class="numeral" style="font-size:76px">118</div>
+        <div class="unit">calls made</div>
+      </div>
+      <div class="sumline">
+        <span>median error <b>4.2</b></span><span>best finish <b>6th</b></span><span>cycles <b>3</b></span>
+      </div>
+      <p class="note">Every call below was written before its election ran, anchored to a block
+        that already existed. Nothing here can be edited or quietly removed — recompute it
+        yourself from the published log.</p>
+    </div>
+
+    <div class="label" style="margin:22px 0 2px">Ledger · most recent first</div>
+    <div class="ledger" id="ledger"></div>
+
+    <p class="note" style="margin-top:16px">Identity is a per-device key issued by Nimiq Pay.
+      It follows the record, not the wallet.</p>
+  </section>
+
+  <nav class="nav">
+    <button class="navbtn on" data-view="board">Board</button>
+    <button class="navbtn" data-view="record">My record</button>
+  </nav>
+</main>
+
+<script>
+const FORM = [40,42,49,41,46,44,38,43];           // magnetised past results
+// measured range of the real series is 38–66; a little headroom either side,
+// but not so much that most of the track is dead space
+const MIN = 34, MAX = 68;
+const TRUTH = 43;
+// Players submit a RANGE, not a point — width is the scored skill (§9.2c).
+let lo = 42, hi = 50, locked = false, drag = null;   // drag: 'lo' | 'hi' | 'band'
+
+const cv = document.getElementById('cv');
+const scrub = document.getElementById('scrub');
+const num = document.getElementById('num');
+const ctx = cv.getContext('2d');
+let nearest = null;
+
+// Canvas 2D will not accept oklch() in every engine; a failed strokeStyle
+// assignment silently keeps the previous value (black on a dark board = invisible).
+// Resolve tokens to rgb() through a probe element, which every engine does support.
+const probe = document.createElement('span');
+probe.style.display = 'none';
+document.body.appendChild(probe);
+const colorCache = {};
+function css(v){
+  if(!colorCache[v]){
+    probe.style.color = 'var(' + v + ')';
+    colorCache[v] = getComputedStyle(probe).color;   // always rgb()/rgba()
+  }
+  return colorCache[v];
+}
+
+const xOf = (v,w) => ((v-MIN)/(MAX-MIN))*w;
+
+function draw(px){
+  const dpr = window.devicePixelRatio || 1;
+  const w = scrub.clientWidth, h = scrub.clientHeight;
+  if(!w || !h) return;
+  cv.width = w*dpr; cv.height = h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  const mid = h/2;
+
+  for(let v=MIN; v<=MAX; v++){
+    const x = xOf(v,w), isForm = FORM.includes(v);
+    const len = isForm ? 28 : (v%5===0 ? 18 : 10);
+    let col = isForm ? css('--chalk-dim') : css('--tick');
+    if(px!=null && Math.abs(x-px) < (w/(MAX-MIN))*2.2) col = css('--chalk-dim');
+    ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x+.5, mid-len/2); ctx.lineTo(x+.5, mid+len/2); ctx.stroke();
+  }
+
+  // the interval, drawn as a chalk bracket — the thing being submitted
+  const xl = xOf(lo,w), xh = xOf(hi,w);
+  ctx.strokeStyle = css('--chalk'); ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(xl, mid-20); ctx.lineTo(xl, mid+20);      // left jaw
+  ctx.moveTo(xh, mid-20); ctx.lineTo(xh, mid+20);      // right jaw
+  ctx.moveTo(xl, mid);    ctx.lineTo(xh, mid);         // the span
+  ctx.stroke();
+
+  // at reveal the truth lands on the same track, so "inside or outside" is visual
+  if(document.getElementById('board').classList.contains('revealed')){
+    const xt = xOf(TRUTH,w);
+    const inside = TRUTH>=lo && TRUTH<=hi;
+    if(!inside){
+      ctx.strokeStyle = css('--amber-dim'); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(TRUTH<lo?xl:xh, mid); ctx.lineTo(xt, mid); ctx.stroke();
+    }
+    ctx.strokeStyle = css('--amber'); ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(xt, mid-26); ctx.lineTo(xt, mid+26); ctx.stroke();
+  }
+}
+
+function snap(v){
+  const r = scrub.getBoundingClientRect(), pxPerUnit = r.width/(MAX-MIN);
+  for(const f of FORM) if(Math.abs(v-f)*pxPerUnit < 6){ nearest=f; return f }
+  nearest = null; return Math.round(v);
+}
+function valueAt(clientX){
+  const r = scrub.getBoundingClientRect();
+  const t = Math.min(1, Math.max(0, (clientX-r.left)/r.width));
+  return MIN + t*(MAX-MIN);
+}
+function outcomeLabel(){
+  const inside = TRUTH>=lo && TRUTH<=hi;
+  return inside ? 'inside your range · width '+(hi-lo)
+                : 'outside by ' + (TRUTH<lo ? lo-TRUTH : TRUTH-hi);
+}
+function render(px){
+  num.innerHTML = lo + '<span class="ndash">–</span>' + hi;
+  num.classList.toggle('wide', String(lo).length + String(hi).length > 4);
+  document.getElementById('hint').textContent = locked
+    ? 'locked · published at resolution'
+    : (nearest!=null ? 'past result · '+nearest+' slots'
+                     : 'width ' + (hi-lo) + ' · aim to be right 4 times in 5');
+  // derive the outcome text here rather than only on reveal, so it can never go stale
+  document.getElementById('gaplabel').textContent = outcomeLabel();
+  draw(px);
+}
+
+function down(e){
+  if(locked) return;
+  const x = e.clientX ?? e.touches[0].clientX, v = valueAt(x);
+  const dl = Math.abs(v-lo), dh = Math.abs(v-hi);
+  drag = (v>lo && v<hi && Math.min(dl,dh)>1.5) ? 'band' : (dl<=dh ? 'lo' : 'hi');
+  dragOrigin = {v, lo, hi};
+  num.classList.add('scrubbing');
+  move(e);
+  e.preventDefault();
+}
+let dragOrigin = null;
+function move(e){
+  if(!drag) return;
+  const x = e.clientX ?? e.touches[0].clientX, v = valueAt(x);
+  if(drag==='band'){
+    const shift = Math.round(v - dragOrigin.v);
+    let nl = dragOrigin.lo + shift, nh = dragOrigin.hi + shift;
+    if(nl<MIN){ nh += MIN-nl; nl = MIN } if(nh>MAX){ nl -= nh-MAX; nh = MAX }
+    lo = nl; hi = nh; nearest = null;
+  } else if(drag==='lo'){
+    lo = Math.max(MIN, Math.min(snap(v), hi-1));
+  } else {
+    hi = Math.min(MAX, Math.max(snap(v), lo+1));
+  }
+  render(x - scrub.getBoundingClientRect().left);
+  e.preventDefault();
+}
+function up(){ if(!drag) return; drag=null; num.classList.remove('scrubbing'); render(null) }
+
+scrub.addEventListener('pointerdown', down);
+window.addEventListener('pointermove', move);
+window.addEventListener('pointerup', up);
+
+document.getElementById('lockbtn').addEventListener('click', ()=>{
+  locked = true;
+  scrub.classList.add('locked');
+  document.getElementById('lockrow').innerHTML =
+    '<div class="stamp"><div class="v">'+lo+'–'+hi+' called</div>'+
+    '<div class="anchor">anchored to block 59,053,200</div></div>';
+  render(null);
+});
+
+document.getElementById('toggle').addEventListener('click', ()=>{
+  document.getElementById('board').classList.toggle('revealed');
+  render(null);
+});
+
+// ---- ledger (values mirror the real measured series) ----
+const LEDGER = [
+  ['Aug 17 · 05:00','top validator slots',44,40],
+  ['Aug 16 · 17:00','validators elected',30,31],
+  ['Aug 16 · 05:00','top validator slots',45,49],
+  ['Aug 15 · 17:00','top validator slots',43,41],
+  ['Aug 15 · 05:00','validators elected',29,29],
+  ['Aug 14 · 17:00','top validator slots',44,46],
+  ['Aug 14 · 05:00','top validator slots',41,38],
+  ['Aug 13 · 17:00','validators elected',31,33],
+];
+document.getElementById('ledger').innerHTML = LEDGER.map(([d,m,call,truth])=>{
+  const e = Math.abs(call-truth);
+  // An exact call is the most brag-worthy row on the page; a zero-length error bar
+  // would make it the least visible. Mark it — with weight and brightness, not colour.
+  const err = e === 0
+    ? `<span class="lexact">exact</span>`
+    : `<span class="lbar" style="--e:${e}"></span><span class="lev">${e}</span>`;
+  return `<div class="lrow${e===0?' hit':''}">
+    <div class="ldate">${d}</div>
+    <div class="lnums">${call}<span class="arrow">&rarr;</span>${truth}</div>
+    <div class="lmetric">${m}</div>
+    <div class="lerr">${err}</div>
+  </div>`;
+}).join('');
+
+// ---- view switching ----
+document.querySelectorAll('.navbtn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const v = b.dataset.view;
+    document.querySelectorAll('.navbtn').forEach(x=>x.classList.toggle('on', x===b));
+    document.getElementById('view-board').hidden  = v!=='board';
+    document.getElementById('view-record').hidden = v!=='record';
+    if(v==='board') render(null);
+    window.scrollTo(0,0);
+  });
+});
+
+// countdown, tabular so nothing shifts
+let secs = 4*3600+12*60+38;
+setInterval(()=>{ secs=Math.max(0,secs-1);
+  const h=String(Math.floor(secs/3600)).padStart(2,'0');
+  const m=String(Math.floor(secs%3600/60)).padStart(2,'0');
+  const s=String(secs%60).padStart(2,'0');
+  document.getElementById('cd').textContent = h+':'+m+':'+s;
+},1000);
+
+new ResizeObserver(()=>render(null)).observe(scrub);
+document.fonts.ready.then(()=>render(null));
+render(null);
+</script>
+</body>
+</html>
