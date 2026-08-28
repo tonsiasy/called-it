@@ -1,23 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import BoardView from './components/BoardView.jsx'
 import RecordView from './components/RecordView.jsx'
-import {
-  SAMPLE_FORM,
-  SAMPLE_FORM_MEDIAN,
-  SAMPLE_FORM_ROWS,
-  SAMPLE_LEDGER,
-  SAMPLE_QUESTION,
-  SAMPLE_RECORD,
-  SAMPLE_STANDING,
-  SAMPLE_TRACK,
-} from './data/sample.js'
+import { useBoardData } from './hooks/useBoardData.js'
+import { SAMPLE_LEDGER, SAMPLE_RECORD, SAMPLE_STANDING } from './data/sample.js'
 
 const VIEWS = /** @type {const} */ (['board', 'record'])
-
-/** Opening call, sat on the run of recent results rather than centred on the track. */
-const OPENING_RANGE = Object.freeze({ lo: 42, hi: 50 })
-
-const SECONDS_TO_RESOLUTION = 4 * 3600 + 12 * 60 + 38
 
 function formatCountdown(totalSeconds) {
   const pad = (n) => String(n).padStart(2, '0')
@@ -28,26 +15,52 @@ function formatCountdown(totalSeconds) {
   ].join(':')
 }
 
+function Notice({ title, detail }) {
+  return (
+    <div className="flex flex-1 flex-col justify-center py-16">
+      <p className="max-w-[24ch] text-question font-medium text-chalk-dim">{title}</p>
+      {detail ? <p className="mt-3 max-w-[34ch] text-figure text-chalk-faint">{detail}</p> : null}
+    </div>
+  )
+}
+
 /**
  * App shell. The two destinations are a chalk rule with two caps labels, not a
  * tab bar — DESIGN.md §7 rule 11.
  */
 export default function App() {
+  const board = useBoardData()
+
   const [view, setView] = useState('board')
-  const [range, setRange] = useState(OPENING_RANGE)
+  const [range, setRange] = useState(null)
   const [locked, setLocked] = useState(false)
-  const [revealed, setRevealed] = useState(false)
+  const [showResolved, setShowResolved] = useState(false)
   const [snappedTo, setSnappedTo] = useState(null)
   const [isScrubbing, setIsScrubbing] = useState(false)
-  const [secondsLeft, setSecondsLeft] = useState(SECONDS_TO_RESOLUTION)
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    const id = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000)
+    const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
 
   const handleSnapChange = useCallback((value) => setSnappedTo(value), [])
   const handleScrubbingChange = useCallback((value) => setIsScrubbing(value), [])
+
+  // The opening call sits on recent form, so it is not known until the form has
+  // been read from chain. Deriving it rather than syncing it into state removes
+  // the frame where the board is ready but the call is not yet chosen.
+  const effectiveRange = range ?? (board.status === 'ready' ? board.openingRange : null)
+
+  const isReady = board.status === 'ready' && effectiveRange !== null
+  const resolved = isReady ? board.resolvedQuestion : null
+  const isShowingResolved = isReady && showResolved && resolved !== null
+
+  const question = isShowingResolved ? resolved : isReady ? board.openQuestion : null
+  const secondsLeft =
+    isReady && board.openQuestion.resolvesAtMs
+      ? Math.max(0, Math.round((board.openQuestion.resolvesAtMs - now) / 1000))
+      : null
 
   return (
     <main className="board-surface relative mx-auto flex min-h-screen w-full max-w-board flex-col bg-board px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] sm:min-h-0 sm:rounded-panel sm:outline sm:outline-1 sm:-outline-offset-1 sm:outline-chalk-faint">
@@ -58,7 +71,7 @@ export default function App() {
         {/* deliberately not amber — the reveal owns the only colour event */}
         <div className="text-label font-semibold uppercase text-chalk-dim">
           <span className="mr-1.5 inline-block h-[5px] w-[5px] rounded-full bg-chalk-dim align-middle" />
-          {formatCountdown(secondsLeft)}
+          {secondsLeft === null ? '--:--:--' : formatCountdown(secondsLeft)}
         </div>
       </header>
       <hr className="mt-3.5 h-px shrink-0 border-0 bg-chalk-faint" />
@@ -68,26 +81,32 @@ export default function App() {
           {view === 'board' ? 'Board' : 'My record'}
         </h2>
 
-        {view === 'board' ? (
+        {view === 'record' ? (
+          <RecordView record={SAMPLE_RECORD} ledger={SAMPLE_LEDGER} />
+        ) : board.status === 'loading' ? (
+          <Notice title="Reading the last eight elections from chain…" />
+        ) : board.status === 'error' ? (
+          <Notice title={board.message} detail={board.detail} />
+        ) : !isReady ? (
+          <Notice title="Reading the last eight elections from chain…" />
+        ) : (
           <BoardView
-            question={SAMPLE_QUESTION}
-            track={SAMPLE_TRACK}
-            form={SAMPLE_FORM}
-            range={range}
+            question={question}
+            track={board.track}
+            form={isShowingResolved ? resolved.form : board.form}
+            range={effectiveRange}
             onRangeChange={setRange}
-            locked={locked}
+            locked={locked || isShowingResolved}
             onLock={() => setLocked(true)}
-            revealed={revealed}
+            revealed={isShowingResolved}
             snappedTo={snappedTo}
             onSnapChange={handleSnapChange}
             onScrubbingChange={handleScrubbingChange}
             isScrubbing={isScrubbing}
-            formRows={SAMPLE_FORM_ROWS}
-            formMedian={SAMPLE_FORM_MEDIAN}
+            formRows={board.formRows}
+            formMedian={board.formMedian}
             standing={SAMPLE_STANDING}
           />
-        ) : (
-          <RecordView record={SAMPLE_RECORD} ledger={SAMPLE_LEDGER} />
         )}
       </section>
 
@@ -110,14 +129,20 @@ export default function App() {
         ))}
       </nav>
 
-      {/* Demo control, not part of the design. Goes when the scheduler lands — see BACKLOG. */}
-      <button
-        type="button"
-        onClick={() => setRevealed((r) => !r)}
-        className="fixed bottom-2.5 right-2.5 z-10 rounded-chip border border-chalk-faint bg-board-raised px-2.5 py-[7px] text-[11px] leading-none text-chalk-dim opacity-75"
-      >
-        toggle reveal
-      </button>
+      {/*
+        Not a demo toggle: both sides are real. The open question resolves at the
+        next election and has no truth yet; the previous one settled on chain and
+        this shows what it landed on.
+      */}
+      {view === 'board' && resolved ? (
+        <button
+          type="button"
+          onClick={() => setShowResolved((s) => !s)}
+          className="fixed bottom-2.5 right-2.5 z-10 rounded-chip border border-chalk-faint bg-board-raised px-2.5 py-[7px] text-[11px] leading-none text-chalk-dim opacity-75"
+        >
+          {showResolved ? 'show open question' : 'show last settled'}
+        </button>
+      ) : null}
     </main>
   )
 }

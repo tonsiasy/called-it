@@ -64,23 +64,23 @@ function Outcome({ revealed, truth, range, resolvesAt }) {
 
       <div
         className={`pointer-events-none absolute inset-0 flex flex-col items-center transition-opacity duration-[240ms] ease-board ${
-          isRevealed ? 'opacity-100' : 'opacity-0'
+          revealed ? 'opacity-100' : 'opacity-0'
         }`}
       >
         <div
           className="mb-0.5 mt-2.5 h-px w-[min(240px,70%)] origin-left bg-amber-dim transition-transform duration-[240ms] delay-[120ms] ease-board"
-          style={{ transform: isRevealed ? 'scaleX(1)' : 'scaleX(0)' }}
+          style={{ transform: revealed ? 'scaleX(1)' : 'scaleX(0)' }}
         />
         <div
           className={`text-label font-semibold uppercase text-amber-dim transition-opacity duration-200 delay-[320ms] ease-board ${
-            isRevealed ? 'opacity-100' : 'opacity-0'
+            revealed ? 'opacity-100' : 'opacity-0'
           }`}
         >
           {label}
         </div>
         <div
           className={`font-display text-truth font-bold text-amber transition-all duration-[320ms] ease-board ${
-            isRevealed ? 'opacity-100 blur-0' : 'translate-y-3 opacity-0 blur-[4px]'
+            revealed ? 'opacity-100 blur-0' : 'translate-y-3 opacity-0 blur-[4px]'
           }`}
         >
           {truth}
@@ -140,8 +140,7 @@ export default function BoardView({
     <>
       <div className="mt-7">
         <div className="mb-2.5 text-label font-semibold uppercase text-chalk-dim">
-          Election {question.epoch}
-          {question.index ? ` · question ${question.index} of ${question.of}` : ''}
+          Election {question.epoch} · question {question.index} of {question.of}
         </div>
         <h1 className="max-w-[22ch] text-question font-medium text-balance">{question.prompt}</h1>
       </div>
@@ -152,7 +151,7 @@ export default function BoardView({
           revealed={revealed}
           truth={question.truth}
           range={range}
-          resolvesAt={question.resolvesAtLabel ?? 'the next election'}
+          resolvesAt={question.resolvesAt}
         />
       </div>
 
