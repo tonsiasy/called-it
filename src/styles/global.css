@@ -25,6 +25,16 @@
   }
 }
 
+@layer components {
+  /* An uneven matte board, not a flat fill. DESIGN.md §2 — the two washes are
+     what stop 430px of one colour reading as a dead rectangle on a phone. */
+  .board-surface {
+    background-image:
+      radial-gradient(120% 80% at 50% 0%, oklch(0.235 0.018 168) 0%, transparent 60%),
+      radial-gradient(100% 60% at 0% 100%, oklch(0.185 0.016 168) 0%, transparent 55%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
