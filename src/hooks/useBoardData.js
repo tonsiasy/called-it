@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react'
 import { createRpcClient, fetchMetricSeries } from '../lib/rpc.js'
 import { buildQuestion, medianOf, trackFrom } from '../lib/board.js'
-import { BLOCKS_PER_EPOCH } from '../lib/constants.js'
+import { questionIndexFor, scheduleFor } from '../lib/schedule.js'
+import { BLOCKS_PER_EPOCH, CYCLE_START_HEIGHT } from '../lib/constants.js'
 
 /** The run of past results the scrubber magnetises to, and the form table summarises. */
 const FORM_LENGTH = 8
 
 /** Rows shown above the median line. The rest of the run lives on the track as ticks. */
 const FORM_ROWS = 4
-
-/** §9.2b ranks this first among the settled question set. The scheduler will rotate it. */
-const QUESTION_METRIC = 'topSlots'
 
 /** Half-width of the opening call, placed on the median of recent form. */
 const OPENING_HALF_WIDTH = 4
@@ -41,34 +39,70 @@ function openingRange(median, track) {
   })
 }
 
-function assemble(series, latestElectionHeight) {
-  const values = series.map((entry) => entry.metrics[QUESTION_METRIC])
+/**
+ * The board furniture for one metric: the track, the run of past results and
+ * the form table.
+ *
+ * Built per question rather than once, because the rotation guarantees
+ * consecutive questions ask about different metrics — `hhiBp` runs in the
+ * hundreds where `turnover` runs in single figures, so one shared track would
+ * be wrong for at least one of them.
+ */
+function viewFor(series, metricKey) {
+  const values = series.map((entry) => entry.metrics[metricKey])
   const track = trackFrom(values)
 
-  const rows = [...series]
-    .reverse()
-    .slice(0, FORM_ROWS)
-    .map((entry) => ({
-      at: formatElectionTime(entry.timestamp),
-      value: entry.metrics[QUESTION_METRIC],
-    }))
+  return {
+    values,
+    track,
+    rows: [...series]
+      .reverse()
+      .slice(0, FORM_ROWS)
+      .map((entry) => ({
+        at: formatElectionTime(entry.timestamp),
+        value: entry.metrics[metricKey],
+      })),
+    median: { at: `Median of ${values.length}`, value: medianOf(values) },
+  }
+}
+
+function assemble(series, latestElectionHeight) {
+  // Which question is open is a position in the cycle, and the metric follows
+  // from that position — both computable without asking anyone.
+  const openIndex = questionIndexFor({
+    cycleStart: CYCLE_START_HEIGHT,
+    resolutionHeight: latestElectionHeight + BLOCKS_PER_EPOCH,
+  })
+  const open = scheduleFor({ cycleStart: CYCLE_START_HEIGHT, index: openIndex })
+  const openView = viewFor(series, open.metricKey)
+
+  const settled = series.at(-1)
+  const priorSeries = series.slice(0, -1)
 
   // The question now open resolves at the next election, so its truth does not
   // exist yet. The previous one has already settled, and its truth is on chain —
   // that is what the reveal shows, rather than a number invented for a demo.
-  const settledIndex = series.length - 1
-  const settled = series[settledIndex]
-  const priorAnchor = series[settledIndex - 1]
+  const settledSchedule =
+    openIndex > 1 ? scheduleFor({ cycleStart: CYCLE_START_HEIGHT, index: openIndex - 1 }) : null
+  const settledView =
+    settledSchedule && priorSeries.length > 0 ? viewFor(priorSeries, settledSchedule.metricKey) : null
 
   return {
     status: 'ready',
-    track,
-    form: values,
-    formRows: rows,
-    formMedian: { at: `Median of ${values.length}`, value: medianOf(values) },
-    openingRange: openingRange(medianOf(values), track),
+    series,
+    track: openView.track,
+    form: openView.values,
+    formRows: openView.rows,
+    formMedian: openView.median,
+    openingRange: openingRange(openView.median.value, openView.track),
+
     openQuestion: {
-      ...buildQuestion({ latestElectionHeight, metricKey: QUESTION_METRIC }),
+      ...buildQuestion({
+        latestElectionHeight,
+        metricKey: open.metricKey,
+        index: open.index,
+        of: open.of,
+      }),
       truth: null,
       // Albatross separates blocks by a fixed second, so the next election's
       // wall-clock time is arithmetic on the last one — no oracle needed.
@@ -77,16 +111,22 @@ function assemble(series, latestElectionHeight) {
         ? formatElectionTime(settled.timestamp + BLOCKS_PER_EPOCH * 1000)
         : 'the next election',
     },
-    resolvedQuestion: priorAnchor
+
+    resolvedQuestion: settledView
       ? {
           ...buildQuestion({
-            latestElectionHeight: priorAnchor.height,
-            metricKey: QUESTION_METRIC,
+            latestElectionHeight: settled.height - BLOCKS_PER_EPOCH,
+            metricKey: settledSchedule.metricKey,
+            index: settledSchedule.index,
+            of: settledSchedule.of,
           }),
-          truth: settled.metrics[QUESTION_METRIC],
+          truth: settled.metrics[settledSchedule.metricKey],
           resolvedAt: formatElectionTime(settled.timestamp),
-          // the truth is withheld from the magnet, or the answer sits on the track
-          form: values.slice(0, -1),
+          // its own track: the settled question asked about a different metric
+          track: settledView.track,
+          form: settledView.values,
+          formRows: settledView.rows,
+          formMedian: settledView.median,
         }
       : null,
   }

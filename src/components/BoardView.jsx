@@ -128,7 +128,7 @@ export default function BoardView({
   isScrubbing,
   formRows,
   formMedian,
-  standing,
+  record,
 }) {
   const hint = locked
     ? 'locked · published at resolution'
@@ -196,15 +196,26 @@ export default function BoardView({
 
       <FormTable rows={formRows} median={formMedian} />
 
+      {/*
+        Calibration, not a standing. A standing needs a field, and a field needs
+        the published call log that every device can recompute — until that
+        lands there are no other players to be ranked against. What a single
+        player's own log does support is whether their ranges are honest, which
+        is the skill the scoring rewards anyway.
+      */}
       <div className="mt-[18px] flex items-baseline justify-between rounded-panel bg-board-raised px-4 py-3.5">
         <div>
-          <div className="mb-[5px] text-label font-semibold uppercase text-chalk-dim">Standing</div>
+          <div className="mb-[5px] text-label font-semibold uppercase text-chalk-dim">
+            Calibration
+          </div>
           <div className="font-display text-[26px] font-bold tracking-[-0.012em]">
-            {standing.place}
+            {record.resolved === 0 ? '—' : `${record.insideCount}/${record.resolved}`}
           </div>
         </div>
-        <div className="text-figure font-medium text-chalk-dim">
-          {standing.points.toLocaleString('en-US')} pts · {standing.percentile}
+        <div className="max-w-[18ch] text-right text-figure font-medium text-chalk-dim">
+          {record.resolved === 0
+            ? 'no calls resolved yet'
+            : `${Math.round(record.hitRate * 100)}% inside · aim for 80%`}
         </div>
       </div>
     </>

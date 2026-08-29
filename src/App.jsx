@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import BoardView from './components/BoardView.jsx'
 import RecordView from './components/RecordView.jsx'
 import { useBoardData } from './hooks/useBoardData.js'
-import { SAMPLE_LEDGER, SAMPLE_RECORD, SAMPLE_STANDING } from './data/sample.js'
+import { useCallLog } from './hooks/useCallLog.js'
 
 const VIEWS = /** @type {const} */ (['board', 'record'])
 
@@ -30,10 +30,10 @@ function Notice({ title, detail }) {
  */
 export default function App() {
   const board = useBoardData()
+  const { record, ledger, lockCall, hasCalled } = useCallLog(board.series)
 
   const [view, setView] = useState('board')
   const [range, setRange] = useState(null)
-  const [locked, setLocked] = useState(false)
   const [showResolved, setShowResolved] = useState(false)
   const [snappedTo, setSnappedTo] = useState(null)
   const [isScrubbing, setIsScrubbing] = useState(false)
@@ -57,6 +57,10 @@ export default function App() {
   const isShowingResolved = isReady && showResolved && resolved !== null
 
   const question = isShowingResolved ? resolved : isReady ? board.openQuestion : null
+
+  // A call already made is history: the board shows it locked rather than
+  // offering a second one on the same election.
+  const isLocked = isShowingResolved || (isReady && hasCalled(board.openQuestion.resolutionHeight))
   const secondsLeft =
     isReady && board.openQuestion.resolvesAtMs
       ? Math.max(0, Math.round((board.openQuestion.resolvesAtMs - now) / 1000))
@@ -82,7 +86,7 @@ export default function App() {
         </h2>
 
         {view === 'record' ? (
-          <RecordView record={SAMPLE_RECORD} ledger={SAMPLE_LEDGER} />
+          <RecordView record={record} ledger={ledger} />
         ) : board.status === 'loading' ? (
           <Notice title="Reading the last eight elections from chain…" />
         ) : board.status === 'error' ? (
@@ -92,20 +96,30 @@ export default function App() {
         ) : (
           <BoardView
             question={question}
-            track={board.track}
+            track={isShowingResolved ? resolved.track : board.track}
             form={isShowingResolved ? resolved.form : board.form}
             range={effectiveRange}
             onRangeChange={setRange}
-            locked={locked || isShowingResolved}
-            onLock={() => setLocked(true)}
+            locked={isLocked}
+            onLock={() =>
+              lockCall({
+                index: board.openQuestion.index,
+                metricKey: board.openQuestion.metricKey,
+                resolutionHeight: board.openQuestion.resolutionHeight,
+                anchorBlock: board.openQuestion.anchorBlock,
+                lo: effectiveRange.lo,
+                hi: effectiveRange.hi,
+                at: Date.now(),
+              })
+            }
             revealed={isShowingResolved}
             snappedTo={snappedTo}
             onSnapChange={handleSnapChange}
             onScrubbingChange={handleScrubbingChange}
             isScrubbing={isScrubbing}
-            formRows={board.formRows}
-            formMedian={board.formMedian}
-            standing={SAMPLE_STANDING}
+            formRows={isShowingResolved ? resolved.formRows : board.formRows}
+            formMedian={isShowingResolved ? resolved.formMedian : board.formMedian}
+            record={record}
           />
         )}
       </section>

@@ -13,6 +13,13 @@ export const QUESTIONS_PER_DAY = 2
  *  shortening the cycle costs more fidelity than shrinking the field does. */
 export const QUESTIONS_PER_CYCLE = 56
 
+/**
+ * The election that opened this cycle — 2026-08-24, when the competition cycle
+ * did. Every question's index and resolution height is arithmetic on this, so
+ * the whole schedule can be published before any of it runs.
+ */
+export const CYCLE_START_HEIGHT = 59_745_600
+
 /** Interval scoring: players aim to be right 4 times in 5. */
 export const INTERVAL_ALPHA = 0.2
 

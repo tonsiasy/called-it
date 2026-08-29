@@ -15,10 +15,17 @@ blocks — exactly 12 hours at a fixed one-second separation — so a question c
 resolves at before that block exists. The app fetches those blocks directly and derives every
 figure from them:
 
-- the question and its resolution height
+- which question is open — its position in the 56-question cycle and the metric it asks about
+  both follow from arithmetic on the cycle's opening height
 - the scrubber's track and the run of past results it magnetises to
 - the form table and its median
 - the previous election's actual outcome
+- whether each of your own calls landed inside the range you called
+
+Consecutive questions never ask about the same metric. That rotation only became worth doing
+once the design moved to intervals: the correct width is metric-specific and does not transfer
+between series, so changing the metric changes what a player has to know. Under point estimates
+the same trailing median won every series and rotating changed nothing.
 
 A call is anchored to a block that already existed when the call was made, which is what stops
 the record being rewritten afterwards. A player who disputes a result fetches the same block and
@@ -39,10 +46,10 @@ npm test         # node's built-in runner, no dependencies required
 ## Layout
 
 ```
-src/lib/         pure logic, fully tested — scoring, metric derivation, the scrubber, RPC
-src/hooks/       useBoardData reads the board from chain
+src/lib/         pure logic, fully tested — scoring, metrics, the scrubber, RPC,
+                 the question schedule, the call log, device identity
+src/hooks/       useBoardData reads the board from chain; useCallLog keeps your calls
 src/components/  board and record surfaces, plus the canvas range scrubber
-src/data/        what is still placeholder, and why
 src/styles/      tokens.css is the single source of colour; tailwind.config.js references it
 tests/           node:test suites, no test framework installed
 ```
@@ -57,9 +64,12 @@ The scrubber's four constraints are covered by tests and were each confirmed in 
 band keeps its width at the track edges, jaws clamp to the track, jaws stop one unit short rather
 than crossing, and the magnet takes the nearest past result rather than the first one listed.
 
-**Still placeholder:** standing, record and ledger (`src/data/sample.js`). Each needs a player
-identity and a published call log before it can be real, so they are marked rather than faked.
-The board itself is live.
+**Nothing in the app is placeholder.** Your record and calibration are computed from calls you
+actually made, resolved against the elections that answered them.
+
+**What is deliberately absent:** a cross-player standing. A standing needs a field, and a field
+needs the call log to be published where every device can recompute it. Until that lands the
+board shows calibration — whether your own ranges are honest — rather than inventing a rank.
 
 ## Where the decisions live
 
