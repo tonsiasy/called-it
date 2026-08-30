@@ -122,8 +122,10 @@ function assemble(series, latestElectionHeight) {
           }),
           truth: settled.metrics[settledSchedule.metricKey],
           resolvedAt: formatElectionTime(settled.timestamp),
-          // its own track: the settled question asked about a different metric
+          // its own track and opening call: the settled question asked about a
+          // different metric, and the open question's range means nothing here
           track: settledView.track,
+          openingRange: openingRange(settledView.median.value, settledView.track),
           form: settledView.values,
           formRows: settledView.rows,
           formMedian: settledView.median,

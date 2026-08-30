@@ -30,7 +30,7 @@ function Notice({ title, detail }) {
  */
 export default function App() {
   const board = useBoardData()
-  const { record, ledger, lockCall, hasCalled } = useCallLog(board.series)
+  const { log, record, ledger, lockCall, hasCalled } = useCallLog(board.series)
 
   const [view, setView] = useState('board')
   const [range, setRange] = useState(null)
@@ -61,6 +61,17 @@ export default function App() {
   // A call already made is history: the board shows it locked rather than
   // offering a second one on the same election.
   const isLocked = isShowingResolved || (isReady && hasCalled(board.openQuestion.resolutionHeight))
+
+  /**
+   * Which interval the board draws. On a settled question that is the call you
+   * actually made on it — not the one currently sitting on the open question,
+   * which was set on a different metric's track and would read as a wild miss.
+   */
+  const calledOnSettled =
+    isShowingResolved && log.find((c) => c.resolutionHeight === resolved.resolutionHeight)
+  const displayRange = isShowingResolved
+    ? (calledOnSettled ?? resolved.openingRange)
+    : effectiveRange
   const secondsLeft =
     isReady && board.openQuestion.resolvesAtMs
       ? Math.max(0, Math.round((board.openQuestion.resolvesAtMs - now) / 1000))
@@ -98,9 +109,10 @@ export default function App() {
             question={question}
             track={isShowingResolved ? resolved.track : board.track}
             form={isShowingResolved ? resolved.form : board.form}
-            range={effectiveRange}
+            range={displayRange}
             onRangeChange={setRange}
             locked={isLocked}
+            hasCall={isShowingResolved ? Boolean(calledOnSettled) : true}
             onLock={() =>
               lockCall({
                 index: board.openQuestion.index,

@@ -120,6 +120,7 @@ export default function BoardView({
   range,
   onRangeChange,
   locked,
+  hasCall = true,
   onLock,
   revealed,
   snappedTo,
@@ -175,14 +176,23 @@ export default function BoardView({
 
       <div className="mt-2 flex min-h-[52px] items-center justify-center">
         {locked ? (
-          <div className="text-center leading-[1.35]">
-            <div className="font-display text-[26px] font-bold tracking-[-0.012em]">
-              {range.lo}–{range.hi} called
+          hasCall ? (
+            <div className="text-center leading-[1.35]">
+              <div className="font-display text-[26px] font-bold tracking-[-0.012em]">
+                {range.lo}–{range.hi} called
+              </div>
+              <div className="text-figure font-medium text-chalk-dim">
+                anchored to block {question.anchorBlock.toLocaleString('en-US')}
+              </div>
             </div>
-            <div className="text-figure font-medium text-chalk-dim">
-              anchored to block {question.anchorBlock.toLocaleString('en-US')}
+          ) : (
+            // Showing a settled question this player never called. The range on
+            // screen is where recent form sat, not a call — saying "called"
+            // would put words in their mouth.
+            <div className="text-center text-figure font-medium text-chalk-dim">
+              you did not call this one
             </div>
-          </div>
+          )
         ) : (
           <button
             type="button"
