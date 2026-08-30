@@ -144,18 +144,21 @@ export default function App() {
       </nav>
 
       {/*
-        Not a demo toggle: both sides are real. The open question resolves at the
-        next election and has no truth yet; the previous one settled on chain and
-        this shows what it landed on.
+        Both sides of this are real: the open question resolves at the next
+        election and has no truth yet; the previous one settled on chain and this
+        shows what it landed on. It sits in the flow rather than floating over
+        the board — a fixed control covered the calibration panel.
       */}
       {view === 'board' && resolved ? (
-        <button
-          type="button"
-          onClick={() => setShowResolved((s) => !s)}
-          className="fixed bottom-2.5 right-2.5 z-10 rounded-chip border border-chalk-faint bg-board-raised px-2.5 py-[7px] text-[11px] leading-none text-chalk-dim opacity-75"
-        >
-          {showResolved ? 'show open question' : 'show last settled'}
-        </button>
+        <div className="mt-3 flex shrink-0 justify-center">
+          <button
+            type="button"
+            onClick={() => setShowResolved((s) => !s)}
+            className="min-h-[44px] px-3 py-2 text-label font-semibold uppercase text-chalk-faint transition-colors duration-[140ms] ease-board hover:text-chalk-dim"
+          >
+            {showResolved ? '← back to the open question' : 'see the last settled question'}
+          </button>
+        </div>
       ) : null}
     </main>
   )
