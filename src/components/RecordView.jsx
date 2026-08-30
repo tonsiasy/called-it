@@ -97,9 +97,9 @@ export default function RecordView({ record, ledger }) {
 
         <p className="mt-3.5 max-w-[40ch] text-figure leading-[1.5] text-chalk-dim text-pretty">
           {hasCalls
-            ? `Every call below was written before its election ran, anchored to a block that
-               already existed. Nothing here can be edited or quietly removed — recompute it
-               yourself from the published log.`
+            ? `Every call below was written before its election ran and stamped with a block that
+               already existed, so none of it can be backdated. Each result is recomputable from
+               that same block by anyone who fetches it.`
             : `No calls yet. Lock one on the board and it appears here, anchored to a block that
                already exists, so it can be checked after the election runs.`}
         </p>
